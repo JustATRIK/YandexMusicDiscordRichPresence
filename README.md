@@ -68,7 +68,7 @@
    - `most_listened_artist_count` -> Количество треков наиболее прослушанного жанра
    - `listened_time` -> Время прослушивания музыки
    - `listened_by_genre:id жанра` -> Количество прослушанных треков определенного жанра (например, `[statistcis.listened_by_genre:indie]` вернет количество прослушанных инди треков)
-   - `listened_by_artist:twenty one pilots` -> Количество прослушанных треков определенного исполниеля (например, `[statistics.listened_by_genre:indie]` вернет количество прослушанных треков **twenty one pilots**)
+   - `listened_by_artist:имя исполнителя` -> Количество прослушанных треков определенного исполниеля (например, `[statistics.listened_by_artist:twenty one pilots]` вернет количество прослушанных треков **twenty one pilots**)
 2. **album** - альбом трека
    - `id` -> ID альбома
    - `title` -> Название альбома
