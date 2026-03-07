@@ -4,8 +4,8 @@
 ![Python Version](https://img.shields.io/badge/python-3.12%2B-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
 
-Простое фоновое приложение для отображения текущего трека из Яндекс.Музыки в статусе Discord Rich Presence
-
+Простое фоновое приложение для отображения текущего трека из Яндекс.Музыки в статусе Discord Rich Presence  
+⚠️НУЖНО ОТКЛЮЧИТЬ ПЛАВНЫЕ ПЕРЕХОДЫ МЕЖДУ ТРЕКАМИ В НАСТРОЙКАХ ЯНДЕКС МУЗЫКИ⚠️
 ## Скриншоты
 <img width="432" height="148" alt="image" src="https://github.com/user-attachments/assets/c1340b40-109f-4d29-8cec-7405ae5d0f32" />
 
@@ -118,4 +118,5 @@
 3. Скопируйте ярлык в открытую папку
 # Сборка программы
 Программа была собрана через `pyinstaller`  
-Строка сборки: `pyinstaller --onefile --noconsole --hidden-import=win32timezone --icon="./run/static/icon.ico" ./src/main.py`
+Строка сборки: `pyinstaller --onefile --noconsole --hidden-import=win32timezone --icon="./run/static/icon.ico" ./src/main.py`  
+Использовалась немного измененная версия библиотеки `pypresence`, вам нужно будет изменить её код, чтобы собрать программу из исходников!
