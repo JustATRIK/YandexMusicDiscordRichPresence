@@ -359,6 +359,9 @@ class RPCManager:
 
         # After everything initialized start RPC
         if self.yandex_session:
+            self.audio_start_time = datetime.now()
+            self.audio_end_time = self.audio_start_time + self.yandex_session.get_timeline_properties().end_time
+
             app_song_data: Optional[MediaProperties] = SyncMediaManager.get_mediainfo(self.yandex_session)
             if app_song_data:
                 self.app_song_title = app_song_data.title
