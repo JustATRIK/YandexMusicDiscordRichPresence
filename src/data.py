@@ -212,14 +212,27 @@ class Statistics(ReloadableJson, PlaceholderProvider):
     def get_data(self, query: str) -> str:
         match query.strip():
             case "listened_tracks_count": return str(self.listened_songs_count) + " " + utils.tracks_count_name_for_count(self.listened_songs_count)
-            case "most_listened_genre_name": return self.most_listened_genre()[0]
+            case "most_listened_genre_name":
+                data: Optional[tuple[str, int]] = self.most_listened_genre()
+                if data is None:
+                    return "?"
+                return data[0]
             case "most_listened_genre_count":
-                count: int = self.most_listened_genre()[1]
+                data: Optional[tuple[str, int]] = self.most_listened_genre()
+                if data is None:
+                    return "?"
+                count: int = data[1]
                 return str(count) + " " + utils.tracks_count_name_for_count(count)
             case "most_listened_artist_name":
-                return self.most_listened_genre()[0]
+                data: Optional[tuple[str, int]] = self.most_listened_artist()
+                if data is None:
+                    return "?"
+                return data[0]
             case "most_listened_artist_count":
-                count: int = self.most_listened_genre()[1]
+                data: Optional[tuple[str, int]] = self.most_listened_artist()
+                if data is None:
+                    return "?"
+                count: int = data[1]
                 return str(count) + " " + utils.tracks_count_name_for_count(count)
             case "listened_time":
                 return self.formatted_listened_time()
