@@ -11,7 +11,7 @@
 
 ## Установка собранной программы
 
-### Установка
+# Установка
 
 1. **Скачайте последний релиз**
    Перейдите в раздел [Releases](https://github.com/JustATRIK/YandexMusixDiscordRichPresence/releases) и скачайте нужную версию
@@ -38,19 +38,10 @@
      ⚠️ Если ничего не помогает - можете либо открыть тикет, либо написать мне в Телеграмм: `@atrikits`/ Дискорд: `shortatrik`
      ⚠️ Обязательно приложите логи (файл `/data/yamusic.log`, относительно папки, куда вы распаковали скачанный архив)
 
-## Настройка
+# Настройка
 После того, как вы успешно установили программу - вы можете ее настроить!
 Вся конфигурация происходит через файл `/data/config.json`
-"details": "[font.small_capital:[song.title]]",
-        "details_url": "[song.song_url]",
-        "state": "\ud83c\udfa7[song.album_title] ([song.like_count]\u2665) \u043e\u0442 [song.artists]",
-        "status_url": "[main_artist.artist_url]",
-        "large_image": "[song.cover_url]",
-        "large_text_first": "\ud83d\udcfb[song.genre] | [statistics.listened_tracks_count], [statistics.listened_time]",
-        "large_text_second": "\ud83d\ude3bT\u00d8P [statistics.listened_by_artist:twenty one pilots] | [statistics.most_listened_genre_name] [statistics.most_listened_genre_count]",
-        "small_image": "[main_artist.cover_url]",
-        "small_text": "[main_artist.name]"
-# Структура файла конфигурации
+## Структура файла конфигурации
 `rpc_config`:
   - `details` - 1-я строка текста
   - `details_url` - Ссылка, которая будет открыта при нажатии на 1-ю строку текста
@@ -64,7 +55,7 @@
 `large_text_switch_seconds` - раз во сколько секунд менятся `large_text`. Должно быть больше 10 и кратно ему
 `app_id` - ID приложения ЯндексМузыки (скорее всего, вам это менять не нужно)
 `presence_id` - ID клиента Rich Presence (скорее всего, вам это менять не нужно)
-# Плейсхолдеры
+## Плейсхолдеры
 Для настройки программы используется система с плейсхолдорами (при обновлении RPC, ключевые слова будут заменены на необходимые данные)
 Примеры использования: `[font.small_capital:[song.title]]`, `[main_artist.artist_url]`, `Жанр: [song.genre]`
 **Список всех провайдеров:**
