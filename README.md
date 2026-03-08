@@ -12,8 +12,8 @@
 # Установка
 
 1. **Скачайте последний релиз**
-   Перейдите в раздел [Releases](https://github.com/JustATRIK/YandexMusixDiscordRichPresence/releases) и скачайте нужную версию
-   Распакуйте архив в удобную вам папку
+   - Перейдите в раздел [Releases](https://github.com/JustATRIK/YandexMusixDiscordRichPresence/releases) и скачайте нужную версию
+   - Распакуйте архив в удобную вам папку
 2. **Скопируйте куки Яндекс.Музыки**
    - Откройте [Яндекс.Музыку](https://music.yandex.ru) в браузере и войдите в свой аккаунт
    - Откройте инструменты разработчика (`F12`)
