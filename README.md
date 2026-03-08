@@ -9,8 +9,6 @@
 ## Скриншоты
 <img width="432" height="148" alt="image" src="https://github.com/user-attachments/assets/c1340b40-109f-4d29-8cec-7405ae5d0f32" />
 
-## Установка собранной программы
-
 # Установка
 
 1. **Скачайте последний релиз**
