@@ -467,14 +467,17 @@ class RPCManager:
         :return:
         """
         if not utils.is_discord_opened():
-            self.stop_rpc()
+            self.stop_rpc("Discord isn't opened")
             return
 
+        # For some reason, session becomes None without event
+        # So we update session_changed_at every tick when sessions isn't None
         if self.yandex_session:
+            self.session_changed_at = self.working_time
             if self.working_time % 2 == 0:
                 if self.paused:
                     # Stop RPC if music is paused
-                    self.stop_rpc()
+                    self.stop_rpc("Music is paused")
                     self.data_changed = True
                     return
                 else:
@@ -488,7 +491,7 @@ class RPCManager:
                 should_send_updates = True
                 play_info: PlayInfo = self.music_api.get_new_play_info()
 
-                self.logger.info(f"Updating song info. New name {self.app_song_title}")
+                self.logger.info(f"Updating song info. Required {self.app_song_title}")
                 if not play_info.song_list:
                     self.logger.warning("Failed to fetch song data")
                     return
@@ -506,6 +509,7 @@ class RPCManager:
                     self.statistics.increase_statistic(old_song_info)
 
                 self.api_song_title = self.song_info.title
+                self.logger.info(f"Got song from API: {self.api_song_title}")
                 # Update placeholders providers
                 utils.PLACEHOLDER_MANAGER.register_provider("album", self.song_info.album)
                 utils.PLACEHOLDER_MANAGER.register_provider("song", self.song_info)
@@ -527,14 +531,14 @@ class RPCManager:
             # If there's no Yandex session, stop rpc after 3 seconds of session update
             # If do it instantly, right after song ends session sets to None
             # And we stop RPC even though next song is just not loaded yet
-            self.stop_rpc()
+            self.stop_rpc("Session is None")
 
         # Save statistics every 10 seconds
         if self.working_time % 20 == 0:
             self.statistics.save()
         self.working_time += 1
 
-    def stop_rpc(self) -> None:
+    def stop_rpc(self, reason: str = "None") -> None:
         """
         Clears RPC and stops server
         :return:
@@ -544,7 +548,7 @@ class RPCManager:
             try:
                 self.rpc.clear()
                 self.rpc.close()
-                self.logger.info("Stopped rpc")
+                self.logger.info(f"Stopped rpc. Reason {reason}")
             except Exception as e:
                 self.logger.warning("Failed to stop rpc")
                 self.logger.warning(e)
@@ -553,13 +557,21 @@ class RPCManager:
 
 
 if __name__ == "__main__":
+    def run_work_thread() -> None:
+        global work_thread
+        work_thread: threading.Thread = threading.Thread(target=work_loop, daemon=True)
+        work_thread.start()
+
+
     def exception_logger_hook(args):
         if not issubclass(args.exc_type, KeyboardInterrupt):
             logging.critical("Uncaught exception occurred",
                              exc_info=(args.exc_type, args.exc_value, args.exc_traceback))
         # Log all errors in all threads
         sys.__excepthook__(args.exc_type, args.exc_value, args.exc_traceback)
-
+        if args.thread == work_thread:
+            logging.warning("Exception was raised in work thread. Restarting this thread")
+            run_work_thread()
 
     threading.excepthook = exception_logger_hook
 
@@ -580,7 +592,7 @@ if __name__ == "__main__":
                 config_reload_event.clear()
 
             time.sleep(0.5)
-        rpc_manager.stop_rpc()
+        rpc_manager.stop_rpc("Program exited")
 
 
     def quit_action(icon_instance: pystray.Icon, item: MenuItem):
@@ -602,8 +614,7 @@ if __name__ == "__main__":
         )
     )
 
-    work_thread: threading.Thread = threading.Thread(target=work_loop, daemon=True)
-    work_thread.start()
+    run_work_thread()
     logging.info("Started app")
 
     icon.run()
