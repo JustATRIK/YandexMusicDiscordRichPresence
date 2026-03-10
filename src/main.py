@@ -557,9 +557,11 @@ class RPCManager:
 
 
 if __name__ == "__main__":
+    work_thread: threading.Thread
+
     def run_work_thread() -> None:
         global work_thread
-        work_thread: threading.Thread = threading.Thread(target=work_loop, daemon=True)
+        work_thread = threading.Thread(target=work_loop, daemon=True)
         work_thread.start()
 
 
