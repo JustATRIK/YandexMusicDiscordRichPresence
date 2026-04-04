@@ -359,6 +359,7 @@ class RPCManager:
 
         # After everything initialized start RPC
         if self.yandex_session:
+            self.logger.info(f"App loaded, sessions isn't null. Updating info")
             self.audio_start_time = datetime.now()
             self.audio_end_time = self.audio_start_time + self.yandex_session.get_timeline_properties().end_time
 
@@ -367,19 +368,23 @@ class RPCManager:
                 self.app_song_title = app_song_data.title
 
             SyncMediaManager.update_timeline(self.yandex_session)
-            self.paused = self.yandex_session.get_playback_info().playback_status == 5
+            self.paused = self.yandex_session.get_playback_info().playback_status == PAUSE_PLAYBACK_STATUS
             self.connect_to_discord()
+        else:
+            self.logger.info(f"App loaded, sessions is null")
 
     def __on_playback_change(self, session: Session, args: PlaybackInfoChangedEventArgs):
         self.paused = session.get_playback_info().playback_status == PAUSE_PLAYBACK_STATUS
+        self.data_changed = True
+        self.logger.info("Playback status changed")
 
     def __on_mediainfo_change(self, session: Session, args: MediaPropertiesChangedEventArgs):
-        self.audio_start_time = datetime.now()
         new_data: Optional[MediaProperties] = SyncMediaManager.get_mediainfo(session)
         if new_data:
             self.app_song_title = new_data.title
 
     def __on_timeline_changed(self, session: Session, args: MediaPropertiesChangedEventArgs):
+        self.audio_start_time = datetime.now()
         self.audio_start_time -= session.get_timeline_properties().position - timedelta(
             seconds=int(datetime.now().timestamp() - self.audio_start_time.timestamp()))
         self.audio_end_time = self.audio_start_time + session.get_timeline_properties().end_time
@@ -387,7 +392,7 @@ class RPCManager:
 
     def __on_sessions_changed(self, manager: MediaManager, args: SessionsChangedEventArgs):
         self.yandex_session = self.try_find_yandex_session()
-        self.subscribe_to_session_events()
+        self.__subscribe_to_session_events()
         self.session_changed_at = self.working_time
         self.logger.info(f"Sessions changed. Yandex session {self.yandex_session}")
 
@@ -396,6 +401,7 @@ class RPCManager:
         Searches for YandexMusics session
         :return: Optional of Media Session
         """
+        self.logger.info(f"Checking YAMusic session")
         for session in self.media_manager.sessions.get_sessions():
             if session.source_app_user_model_id == self.config.app_id:
                 return session
@@ -488,6 +494,9 @@ class RPCManager:
 
             # Check if we should request new info from API
             if self.api_song_title != self.app_song_title:
+                if self.app_song_title == "":
+                    raise RuntimeError("App song is invalid!")
+
                 should_send_updates = True
                 play_info: PlayInfo = self.music_api.get_new_play_info()
 
@@ -519,11 +528,11 @@ class RPCManager:
             should_send_updates |= self.working_time % 20 == 0 or self.data_changed
 
             if should_send_updates:
-                self.data_changed = False
                 if not self.rpc:
                     if not self.connect_to_discord():
                         return
 
+                self.data_changed = False
                 # Check
                 self.update_rpc(self.working_time % (
                         self.config.large_text_switch_seconds * 4) >= self.config.large_text_switch_seconds * 2)
