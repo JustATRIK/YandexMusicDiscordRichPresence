@@ -9,12 +9,14 @@ from typing import Optional
 from urllib.parse import quote, quote_plus
 
 import dotenv
+import pychrome
 import pystray
 import requests
 import json
 from datetime import datetime, timedelta
 
 from PIL import Image
+from pychrome import Browser, Tab
 from pypresence import Presence
 from pystray import MenuItem
 from winrt._winrt_windows_media_control import PlaybackInfoChangedEventArgs, MediaPropertiesChangedEventArgs, \
@@ -38,11 +40,6 @@ logging.basicConfig(level=logging.DEBUG if os.getenv("DEBUG").lower() == "true" 
                     encoding="utf-8")
 logging.info("Initialized")
 
-COOKIES = os.getenv("COOKIES")
-USER_ID = os.getenv("USER_ID")
-
-WEBSOCKET_URL = "wss://ynison.music.yandex.ru/redirector.YnisonRedirectService/GetRedirectToYnison"
-DEVICE_ID = uuid.uuid4()
 PAUSE_PLAYBACK_STATUS = 5
 
 WARNED_GENRES = set()
@@ -53,63 +50,53 @@ class MusicApi:
     Minimal API for YandexMusic required for RPC
     """
 
-    def __init__(self, cookies: str, user_id: str):
+    def __init__(self, debugger_url: str):
         self.logger = logging.getLogger("MusicAPI")
+        self.debugger_url: str = debugger_url
+
+        self._cookies: dict[str, str] = {}
         self._device_id: uuid = uuid.uuid4()
-        self._user_id: str = user_id
-        self._cookies: str = cookies
-        self._auth_token: str = self.get_auth_token()
-        self._auth_data: Optional[AuthInfo] = self.update_auth_data()
+        self._last_cookies_update = 0
+
         self.logger.info("Loaded music api")
 
-    def get_auth_token(self, session_id: str = None, redirect_ticket: str = None) -> str:
-        """
-        Generates and returns auth token, used by Yandex music service.
-        session_id and redirect_ticket must be provided to get full access to the API
-        :param session_id: Optional, ID of session
-        :param redirect_ticket: Optional, Redirect ticket
-        :return: Auth token
-        """
-        data: dict = {
-            "Ynison-Device-Id": f"{self._device_id}",
-            "Ynison-Device-Info": '{"app_name":"Chrome","app_version":"140.0.0.0","type":1}',
-            "X-Yandex-Music-Multi-Auth-User-Id": f"{self._user_id}"
-        }
-        if session_id is not None:
-            data["Ynison-Session-Id"] = session_id
-        if redirect_ticket is not None:
-            data["Ynison-Redirect-Ticket"] = redirect_ticket
-        return quote(json.dumps(data))
+    def get_debugger_tab(self) -> Optional[Tab]:
+        try:
+            browser: Browser = pychrome.Browser(url=self.debugger_url)
+            tabs: list[Tab] = browser.list_tab()
+            if not tabs:
+                return None
+            return tabs[0]
+        except Exception as e:
+            logging.critical("Can't get debugger tab", exc_info=e)
+            return None
 
-    def update_auth_data(self) -> AuthInfo:
-        """
-        Updates, sets and returns new auth info
-        :return: new AuthInfo
-        """
-        # DO NOT EXPOSE AUTH DATA TO LOGS!!!
-        # DO NOT EXPOSE AUTH DATA TO LOGS!!!
-        # DO NOT EXPOSE AUTH DATA TO LOGS!!!
-        new_auth: AuthInfo = AuthInfo()
+    def update_cookies(self) -> bool:
+        self.logger.debug("Trying to update cookies")
+        app_tab: Tab = self.get_debugger_tab()
+        if not app_tab:
+            self.logger.warning("Can't update cookies. Debugger isn't launched")
+            return False
+        app_tab.start()
 
-        def on_message(ws: WebSocketApp, msg: str, new_auth: AuthInfo):
-            self.logger.debug(f"Auth data request response")
-            ws.close()
-            new_auth.update(json.loads(msg))
+        app_tab.Network.enable()
+        result = app_tab.Network.getCookies()
+        cookies = result.get('cookies', [])
 
-        ws: WebSocketApp = WebSocketApp(
-            WEBSOCKET_URL,
-            header={
-                f"Sec-WebSocket-Protocol": f"Bearer, V2, {self._auth_token}"
-            },
-            on_message=lambda ws, msg: on_message(ws, msg, new_auth),
-            on_error=lambda ws, msg: ws.close(),
-            cookie=COOKIES
-        )
+        self._cookies.clear()
+        for cookie in cookies:
+            self._cookies[cookie["name"]] = cookie["value"]
 
-        ws.run_forever()
-        self._auth_data = new_auth
-        self._auth_token = self.get_auth_token(new_auth.session_id, new_auth.redirect_ticket)
-        return new_auth
+        app_tab.stop()
+        self.logger.debug("Successfully updated cookies")
+        self._last_cookies_update = datetime.now().timestamp()
+        return True
+
+    def update_cookies_if_old(self) -> bool:
+        if datetime.now().timestamp() - self._last_cookies_update > 1200:
+            self.logger.debug("Updating cookies due to outdating")
+            return self.update_cookies()
+        return True
 
     def fetch_song_info(self, song_id: str) -> SongInfo:
         """
@@ -117,14 +104,13 @@ class MusicApi:
         :param song_id:
         :return: SongInfo
         """
-        response: requests.Response = requests.post("https://api.music.yandex.ru/tracks",
-                                                    cookies={i.split("=")[0]: i.split("=")[1] for i in
-                                                             self._cookies.split("; ")}, data={
-                "trackIds": song_id,
-                "removeDuplicates": True,
-                "withProgress": False,
-                "withMixData": False
-            })
+        self.update_cookies_if_old()
+        response: requests.Response = requests.post("https://api.music.yandex.ru/tracks", cookies=self._cookies, data={
+            "trackIds": song_id,
+            "removeDuplicates": True,
+            "withProgress": False,
+            "withMixData": False
+        })
         self.logger.debug(f"Song request response {response.status_code}, {response.text}")
         song_data: dict = response.json()["result"][0]
 
@@ -169,95 +155,38 @@ class MusicApi:
         Fetches and returns current play info (basically song queue and current index in this queue)
         :return: PlayInfo
         """
-        self.update_auth_data()
+        self.logger.debug("Updating play info")
+        app_tab: Tab = self.get_debugger_tab()
+        if not app_tab:
+            self.logger.warning("Can't get new play info. No debugger attached")
+            return PlayInfo()
+        app_tab.start()
+        app_tab.IndexedDB.enable()
+        app_tab.Runtime.enable()
 
-        def on_message(ws: WebSocketApp, message: str, play_info: PlayInfo):
-            ws.close()
-            self.logger.debug(f"Play info updated")
-            play_info.update(json.loads(message))
+        stringified = app_tab.Runtime.evaluate(expression=f"""
+        (async function() {{
+            const db = await new Promise((res,rej) => {{
+                const r = indexedDB.open('music_plays_1.0.0');
+                r.onsuccess = () => res(r.result);
+                r.onerror = () => rej(r.error);
+            }});
+            const tx = db.transaction('playsHeartBeats', 'readonly');
+            const data = await new Promise((res,rej) => {{
+                const req = tx.objectStore('playsHeartBeats').getAll();
+                req.onsuccess = () => res(req.result);
+                req.onerror = () => rej(req.error);
+            }});
+            return JSON.stringify(data);
+        }})();
+        """, awaitPromise=True)
+        data = json.loads(stringified["result"]["value"])
+        app_tab.stop()
+        if not data:
+            self.logger.debug("No song data")
+            return PlayInfo()
 
-        def on_open(ws: WebSocketApp):
-            data = {
-                "update_full_state": {
-                    "player_state": {
-                        "player_queue": {
-                            "current_playable_index": -1,
-                            "entity_id": "",
-                            "entity_type": "VARIOUS",
-                            "playable_list": [],
-                            "options": {
-                                "repeat_mode": "NONE"
-                            },
-                            "shuffle_optional": None,
-                            "entity_context": "BASED_ON_ENTITY_BY_DEFAULT",
-                            "version": {
-                                "device_id": str(self._device_id),
-                                "version": 7680276980327254000,
-                                "timestamp_ms": 0
-                            },
-                            "from_optional": "",
-                            "initial_entity_optional": None,
-                            "adding_options_optional": None,
-                            "queue": None
-                        },
-                        "status": {
-                            "duration_ms": 0,
-                            "paused": True,
-                            "playback_speed": 1,
-                            "progress_ms": 0,
-                            "version": {
-                                "device_id": str(self._device_id),
-                                "version": 4001644781241097000,
-                                "timestamp_ms": 0
-                            }
-                        },
-                        "player_queue_inject_optional": None
-                    },
-                    "device": {
-                        "volume": 1,
-                        "capabilities": {
-                            "can_be_player": True,
-                            "can_be_remote_controller": False,
-                            "volume_granularity": 16
-                        },
-                        "info": {
-                            "app_name": "Chrome",
-                            "app_version": "140.0.0.0",
-                            "title": "Browser Chrome",
-                            "device_id": str(self._device_id),
-                            "type": "WEB"
-                        },
-                        "volume_info": {
-                            "volume": 0,
-                            "version": None
-                        },
-                        "is_shadow": True
-                    },
-                    "is_currently_active": False,
-                    "sync_state_from_eov_optional": None
-                },
-                "rid": str(uuid.uuid4()),
-                "player_action_timestamp_ms": 0,
-                "activity_interception_type": "DO_NOT_INTERCEPT_BY_DEFAULT"
-            }
-            str_data = json.dumps(data)
-            ws.send_text(str_data)
-
-        play_info = PlayInfo()
-
-        ws: WebSocketApp = WebSocketApp(
-            f"wss://{self._auth_data.host}/ynison_state.YnisonStateService/PutYnisonState",
-            header={
-                f"Sec-WebSocket-Protocol": f"Bearer, V2, {self._auth_token}",
-            },
-            on_message=lambda ws, msg: on_message(ws, msg, play_info),
-            on_error=lambda ws, msg: ws.close(),
-            on_open=on_open,
-            cookie=COOKIES
-        )
-        ws.run_forever()
-
-        return play_info
+        return PlayInfo(data[0]["trackId"])
 
 
 class SyncMediaManager:
@@ -321,7 +250,7 @@ class RPCManager:
     Rich Presence manager
     """
 
-    def __init__(self, music_api: MusicApi, media_manager: SyncMediaManager):
+    def __init__(self, media_manager: SyncMediaManager):
         self.logger = logging.getLogger("RPCManager")
 
         self.statistics: Statistics = Statistics.load(utils.DATA_DIR / "statistic.json", lambda: Statistics())
@@ -337,7 +266,7 @@ class RPCManager:
             self.font_provider.save()
         utils.PLACEHOLDER_MANAGER.register_provider("font", self.font_provider)
 
-        self.music_api: MusicApi = music_api
+        self.music_api: MusicApi = MusicApi(self.config.debugger_host)
         self.media_manager: SyncMediaManager = media_manager
         self.rpc: Optional[Presence] = None
         self.yandex_session: Optional[Session] = self.try_find_yandex_session()
@@ -376,12 +305,13 @@ class RPCManager:
     def __on_playback_change(self, session: Session, args: PlaybackInfoChangedEventArgs):
         self.paused = session.get_playback_info().playback_status == PAUSE_PLAYBACK_STATUS
         self.data_changed = True
-        self.logger.info("Playback status changed")
 
     def __on_mediainfo_change(self, session: Session, args: MediaPropertiesChangedEventArgs):
         new_data: Optional[MediaProperties] = SyncMediaManager.get_mediainfo(session)
         if new_data:
+            self.logger.debug(f"Mediainfo changed to {new_data.title}")
             self.app_song_title = new_data.title
+        self.__on_timeline_changed(session, None)
 
     def __on_timeline_changed(self, session: Session, args: MediaPropertiesChangedEventArgs):
         self.audio_start_time = datetime.now()
@@ -403,6 +333,7 @@ class RPCManager:
         """
         self.logger.info(f"Checking YAMusic session")
         for session in self.media_manager.sessions.get_sessions():
+            self.logger.debug(f"Session id: " + session.source_app_user_model_id)
             if session.source_app_user_model_id == self.config.app_id:
                 return session
         return None
@@ -501,14 +432,14 @@ class RPCManager:
                 play_info: PlayInfo = self.music_api.get_new_play_info()
 
                 self.logger.info(f"Updating song info. Required {self.app_song_title}")
-                if not play_info.song_list:
+                if not play_info.song_id:
                     self.logger.warning("Failed to fetch song data")
                     return
 
                 old_song_info: SongInfo = self.song_info
 
                 try:
-                    self.song_info = self.music_api.fetch_song_info(play_info.song_list[play_info.current_song_index])
+                    self.song_info = self.music_api.fetch_song_info(play_info.song_id)
                 except Exception as e:
                     self.logger.error("Failed to fetch song info")
                     self.logger.error(e)
@@ -568,6 +499,7 @@ class RPCManager:
 if __name__ == "__main__":
     work_thread: threading.Thread
 
+
     def run_work_thread() -> None:
         global work_thread
         work_thread = threading.Thread(target=work_loop, daemon=True)
@@ -584,6 +516,7 @@ if __name__ == "__main__":
             logging.warning("Exception was raised in work thread. Restarting this thread")
             run_work_thread()
 
+
     threading.excepthook = exception_logger_hook
 
     working_event: threading.Event = threading.Event()
@@ -591,7 +524,7 @@ if __name__ == "__main__":
 
 
     def work_loop() -> None:
-        rpc_manager: RPCManager = RPCManager(MusicApi(COOKIES, USER_ID), SyncMediaManager())
+        rpc_manager: RPCManager = RPCManager(SyncMediaManager())
         while not working_event.is_set():
             rpc_manager.loop_tick()
 

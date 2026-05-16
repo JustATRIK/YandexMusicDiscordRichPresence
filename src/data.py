@@ -105,13 +105,7 @@ class PlayInfo:
     Class which represents play info
     """
 
-    current_song_index: int = None
-    song_list: list[str] = None
-
-    def update(self, data: dict):
-        player_queue = data["player_state"]["player_queue"]
-        self.current_song_index = player_queue["current_playable_index"]
-        self.song_list = [x["playable_id"] for x in player_queue["playable_list"]]
+    song_id: str = None
 
 
 @dataclasses.dataclass
@@ -120,14 +114,10 @@ class AuthInfo:
     Class which represents auth info
     """
 
-    redirect_ticket: str = None
     session_id: str = None
-    host: str = None
 
     def update(self, data: dict):
-        self.redirect_ticket = data["redirect_ticket"]
         self.session_id = data["session_id"]
-        self.host = data["host"]
 
     def __str__(self):
         # DO NOT EXPOSE AUTH DATA TO LOGS!!!
@@ -172,6 +162,7 @@ class Config(ReloadableJson):
     large_text_switch_seconds: int = 10
     app_id: str = "ru.yandex.desktop.music"
     presence_id: str = "1425844675536748665"
+    debugger_host: str = "http://localhost:9228"
 
     def to_dict(self) -> dict:
         return dataclasses.asdict(self)
