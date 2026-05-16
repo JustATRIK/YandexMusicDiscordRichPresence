@@ -5,7 +5,6 @@
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
 
 Простое фоновое приложение для отображения текущего трека из Яндекс.Музыки в статусе Discord Rich Presence  
-⚠️НУЖНО ОТКЛЮЧИТЬ ПЛАВНЫЕ ПЕРЕХОДЫ МЕЖДУ ТРЕКАМИ В НАСТРОЙКАХ ЯНДЕКС МУЗЫКИ⚠️
 ## Скриншоты
 <img width="432" height="148" alt="image" src="https://github.com/user-attachments/assets/c1340b40-109f-4d29-8cec-7405ae5d0f32" />
 
